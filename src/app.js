@@ -1,0 +1,53 @@
+import cors from "cors";
+import express from "express";
+import helmet from "helmet";
+import morgan from "morgan";
+
+import { errorHandler, notFound } from "./middleware/error.js";
+
+const app = express();
+
+app.set("trust proxy", 1);
+app.disable("x-powered-by");
+
+// ---------------------------------------------------------------------------
+// Stripe webhook mount slot — MUST stay before express.json() so the raw
+// request body is available for signature verification.
+//
+// app.use(
+//   "/api/webhooks/stripe",
+//   express.raw({ type: "application/json" }),
+//   stripeWebhookRouter
+// );
+// ---------------------------------------------------------------------------
+
+app.use(helmet());
+app.use(morgan(process.env.NODE_ENV === "production" ? "tiny" : "dev"));
+app.use(
+  cors({
+    origin(origin, callback) {
+      const allowed = process.env.CLIENT_URL;
+      if (!origin || !allowed || origin === allowed) return callback(null, true);
+      return callback(null, false);
+    },
+    credentials: true,
+    allowedHeaders: ["Content-Type", "Authorization"],
+  })
+);
+
+app.use(express.json());
+
+app.get("/api/health", (_req, res) => {
+  res.json({ ok: true, uptime: process.uptime() });
+});
+
+// ---------------------------------------------------------------------------
+// Routes mount slot
+//
+// app.use("/api/...", someRouter);
+// ---------------------------------------------------------------------------
+
+app.use(notFound);
+app.use(errorHandler);
+
+export default app;
