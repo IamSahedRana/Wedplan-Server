@@ -4,6 +4,7 @@ import helmet from "helmet";
 import morgan from "morgan";
 
 import { errorHandler, notFound } from "./middleware/error.js";
+import userRoutes from "./routes/user.routes.js";
 
 const app = express();
 
@@ -46,6 +47,8 @@ app.get("/api/health", (_req, res) => {
 //
 // app.use("/api/...", someRouter);
 // ---------------------------------------------------------------------------
+
+app.use("/api", userRoutes);
 
 app.use(notFound);
 app.use(errorHandler);
