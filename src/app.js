@@ -4,7 +4,9 @@ import helmet from "helmet";
 import morgan from "morgan";
 
 import { errorHandler, notFound } from "./middleware/error.js";
+import serviceRoutes from "./routes/service.routes.js";
 import userRoutes from "./routes/user.routes.js";
+import vendorRoutes from "./routes/vendor.routes.js";
 
 const app = express();
 
@@ -47,6 +49,10 @@ app.get("/api/health", (_req, res) => {
 //
 // app.use("/api/...", someRouter);
 // ---------------------------------------------------------------------------
+
+app.use("/api/services", serviceRoutes);
+app.use("/api/vendor", vendorRoutes);
+app.use("/api", userRoutes);
 
 app.use("/api", userRoutes);
 
