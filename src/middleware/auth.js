@@ -19,7 +19,8 @@ export async function verifyJWT(req, res, next) {
     if (!token) return res.status(401).json({ message: "Authentication required" });
 
     const { payload } = await jwtVerify(token, getJwks());
-    const user = await getDb().collection("users").findOne({ _id: new ObjectId(payload.sub) });
+    const db = await getDb();
+    const user = await db.collection("users").findOne({ _id: new ObjectId(payload.sub) });
     if (!user) return res.status(401).json({ message: "Authentication required" });
     if (user.isBlocked) return res.status(403).json({ message: "Account is blocked" });
 

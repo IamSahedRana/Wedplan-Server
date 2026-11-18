@@ -18,7 +18,7 @@ const VENDOR_PROJECT = {
 
 /** Public listing: approved + active + vendor not blocked, with filters, sort, pagination. */
 export async function listPublicServices(req, res) {
-  const db = getDb();
+  const db = await getDb();
   const page = Math.max(1, parseInt(req.query.page, 10) || 1);
   const limit = Math.min(48, Math.max(1, parseInt(req.query.limit, 10) || 12));
   const sortMap = {
@@ -108,7 +108,7 @@ export async function listPublicServices(req, res) {
 
 /** Counts of approved+active services (vendor not blocked) per category. */
 export async function categoryCounts(_req, res) {
-  const db = getDb();
+  const db = await getDb();
   const counts = await db
     .collection("services")
     .aggregate([
@@ -135,7 +135,7 @@ export async function categoryCounts(_req, res) {
 
 /** Service detail: approved visible to everyone; pending/rejected only to owner or admin. */
 export async function getServiceById(req, res) {
-  const db = getDb();
+  const db = await getDb();
   const id = new ObjectId(req.params.id);
   const service = await db.collection("services").findOne({ _id: id });
   if (!service) return res.status(404).json({ message: "Service not found" });
@@ -163,7 +163,7 @@ const FREE_SERVICE_LIMIT = 3;
 
 /** Vendor creates a service — starts pending; free vendors limited to 3 active services. */
 export async function createService(req, res) {
-  const db = getDb();
+  const db = await getDb();
   const vendorId = req.user._id;
 
   if (getEffectivePlan(req.user) === "free") {
@@ -195,7 +195,7 @@ export async function createService(req, res) {
 
 /** Vendor lists all their own services (any status). */
 export async function listMyServices(req, res) {
-  const db = getDb();
+  const db = await getDb();
   const items = await db
     .collection("services")
     .find({ vendorId: req.user._id })
@@ -207,7 +207,7 @@ export async function listMyServices(req, res) {
 
 /** Vendor updates own service — whitelist fields only, status/isActive immutable here. */
 export async function updateService(req, res) {
-  const db = getDb();
+  const db = await getDb();
   const id = new ObjectId(req.params.id);
   const service = await db.collection("services").findOne({ _id: id });
   if (!service) return res.status(404).json({ message: "Service not found" });
@@ -230,7 +230,7 @@ export async function updateService(req, res) {
 
 /** Vendor toggles availability of own service — re-activation enforces free limit. */
 export async function setAvailability(req, res) {
-  const db = getDb();
+  const db = await getDb();
   const id = new ObjectId(req.params.id);
   const service = await db.collection("services").findOne({ _id: id });
   if (!service) return res.status(404).json({ message: "Service not found" });
@@ -258,7 +258,7 @@ export async function setAvailability(req, res) {
 
 /** Vendor deletes own service. */
 export async function deleteService(req, res) {
-  const db = getDb();
+  const db = await getDb();
   const id = new ObjectId(req.params.id);
   const service = await db.collection("services").findOne({ _id: id });
   if (!service) return res.status(404).json({ message: "Service not found" });

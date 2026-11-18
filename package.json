@@ -1,12 +1,12 @@
 {
   "name": "wedplan-server",
   "version": "1.0.0",
-  "description": "WedPlan API — Express + MongoDB",
+  "description": "WedPlan API \u2014 Express + MongoDB",
   "type": "module",
   "main": "api/index.js",
   "scripts": {
-    "dev": "node --watch src/server.js",
-    "start": "node src/server.js"
+    "dev": "node init && node --watch src/server.js",
+    "start": "node init && node src/server.js"
   },
   "keywords": [],
   "author": "",

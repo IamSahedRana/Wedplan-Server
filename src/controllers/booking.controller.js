@@ -5,7 +5,7 @@ import { getEffectivePlan } from "../utils/plan.js";
 
 /** Customer creates a booking request for an approved+active service. */
 export async function createBooking(req, res) {
-  const db = getDb();
+  const db = await getDb();
   const serviceId = new ObjectId(req.body.serviceId);
 
   const service = await db.collection("services").findOne({ _id: serviceId });
@@ -57,7 +57,7 @@ export async function createBooking(req, res) {
 
 /** Customer lists their own bookings with service + vendor info. */
 export async function myBookings(req, res) {
-  const db = getDb();
+  const db = await getDb();
   const items = await db
     .collection("bookings")
     .aggregate([
@@ -93,7 +93,7 @@ export async function myBookings(req, res) {
 
 /** Customer cancels their own pending booking. */
 export async function cancelBooking(req, res) {
-  const db = getDb();
+  const db = await getDb();
   const id = new ObjectId(req.params.id);
   const booking = await db.collection("bookings").findOne({ _id: id });
   if (!booking) return res.status(404).json({ message: "Booking not found" });
@@ -110,7 +110,7 @@ export async function cancelBooking(req, res) {
 
 /** Vendor lists their own bookings with service + customer info. */
 export async function vendorBookings(req, res) {
-  const db = getDb();
+  const db = await getDb();
   const items = await db
     .collection("bookings")
     .aggregate([
@@ -144,7 +144,7 @@ export async function vendorBookings(req, res) {
 
 /** Vendor accepts or rejects a pending booking on their own service. */
 export async function updateStatus(req, res) {
-  const db = getDb();
+  const db = await getDb();
   const id = new ObjectId(req.params.id);
   const booking = await db.collection("bookings").findOne({ _id: id });
   if (!booking) return res.status(404).json({ message: "Booking not found" });
@@ -161,7 +161,7 @@ export async function updateStatus(req, res) {
 
 /** Vendor dashboard stats. */
 export async function vendorStats(req, res) {
-  const db = getDb();
+  const db = await getDb();
   const vendorId = req.user._id;
   const [totalServices, activeServices, pendingBookings, acceptedBookings] = await Promise.all([
     db.collection("services").countDocuments({ vendorId }),
@@ -181,7 +181,7 @@ export async function vendorStats(req, res) {
 
 /** Customer dashboard stats. */
 export async function customerStats(req, res) {
-  const db = getDb();
+  const db = await getDb();
   const customerId = req.user._id;
   const [total, pending, accepted, rejected] = await Promise.all([
     db.collection("bookings").countDocuments({ customerId }),
