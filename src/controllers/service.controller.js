@@ -133,25 +133,29 @@ export async function categoryCounts(_req, res) {
   return res.json({ items: counts });
 }
 
-/** Service detail: approved visible to everyone; pending/rejected only to owner or admin. */
+/** Service detail: only approved+active services of unblocked vendors are public; owner/admin may view any. */
 export async function getServiceById(req, res) {
   const db = await getDb();
   const id = new ObjectId(req.params.id);
   const service = await db.collection("services").findOne({ _id: id });
   if (!service) return res.status(404).json({ message: "Service not found" });
 
-  const isOwner = service.vendorId.equals(req.user._id);
-  const isAdmin = req.user.role === "admin";
-  if (service.status !== "approved" && !isOwner && !isAdmin) {
-    return res.status(404).json({ message: "Service not found" });
-  }
-
   const vendor = await db.collection("users").findOne(
     { _id: service.vendorId },
-    { projection: { name: 1, image: 1, businessName: 1, subscriptionPlan: 1, subscriptionExpiresAt: 1 } }
+    { projection: { name: 1, image: 1, businessName: 1, isBlocked: 1, subscriptionPlan: 1, subscriptionExpiresAt: 1 } }
   );
+
+  const isOwner = service.vendorId.equals(req.user._id);
+  const isAdmin = req.user.role === "admin";
+  if (!isOwner && !isAdmin) {
+    if (service.status !== "approved" || service.isActive !== true || vendor?.isBlocked) {
+      return res.status(404).json({ message: "Service not found" });
+    }
+  }
+
   if (vendor) {
     vendor.plan = getEffectivePlan(vendor);
+    delete vendor.isBlocked;
     delete vendor.subscriptionPlan;
     delete vendor.subscriptionExpiresAt;
   }
