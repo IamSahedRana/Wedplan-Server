@@ -12,6 +12,7 @@ const VENDOR_PROJECT = {
   image: 1,
   businessName: 1,
   subscriptionPlan: 1,
+  subscriptionTimeline: 1,
   subscriptionExpiresAt: 1,
   isBlocked: 1,
 };
@@ -26,7 +27,7 @@ export async function listPublicServices(req, res) {
     price_desc: { "price": -1 },
     newest: { "createdAt": -1 },
   };
-  const sort = sortMap[req.query.sort] || sortMap.newest;
+  const sort = { featured: -1, ...(sortMap[req.query.sort] || sortMap.newest) };
 
   const match = { status: "approved", isActive: true };
 
@@ -72,20 +73,25 @@ export async function listPublicServices(req, res) {
       { $match: { "vendor.isBlocked": { $ne: true } } },
       {
         $addFields: {
-          "vendor.plan": {
-            $cond: [
+          featured: {
+            $or: [
+              {
+                $and: [
+                  { $eq: ["$vendor.subscriptionPlan", "PRO"] },
+                  { $eq: ["$vendor.subscriptionTimeline", "UNLIMITED"] },
+                ],
+              },
               {
                 $and: [
                   { $eq: ["$vendor.subscriptionPlan", "premium"] },
                   { $gt: ["$vendor.subscriptionExpiresAt", now] },
                 ],
               },
-              "premium",
-              "free",
             ],
           },
         },
       },
+      { $addFields: { "vendor.plan": { $cond: ["$featured", "premium", "free"] } } },
       {
         $facet: {
           items: [{ $sort: sort }, { $skip: (page - 1) * limit }, { $limit: limit }],
@@ -99,6 +105,7 @@ export async function listPublicServices(req, res) {
   const items = (facet?.items || []).map((s) => {
     delete s.vendor.isBlocked;
     delete s.vendor.subscriptionPlan;
+    delete s.vendor.subscriptionTimeline;
     delete s.vendor.subscriptionExpiresAt;
     return s;
   });
@@ -140,12 +147,14 @@ export async function getServiceById(req, res) {
   const service = await db.collection("services").findOne({ _id: id });
   if (!service) return res.status(404).json({ message: "Service not found" });
 
-  const vendor = await db.collection("users").findOne(
-    { _id: service.vendorId },
-    { projection: { name: 1, image: 1, businessName: 1, isBlocked: 1, subscriptionPlan: 1, subscriptionExpiresAt: 1 } }
-  );
+  const vendor = service.vendorId
+    ? await db.collection("users").findOne(
+        { _id: service.vendorId },
+        { projection: { name: 1, image: 1, businessName: 1, isBlocked: 1, subscriptionPlan: 1, subscriptionTimeline: 1, subscriptionExpiresAt: 1 } }
+      )
+    : null;
 
-  const isOwner = service.vendorId.equals(req.user._id);
+  const isOwner = String(service.vendorId) === String(req.user._id);
   const isAdmin = req.user.role === "admin";
   if (!isOwner && !isAdmin) {
     if (service.status !== "approved" || service.isActive !== true || vendor?.isBlocked) {
@@ -157,6 +166,7 @@ export async function getServiceById(req, res) {
     vendor.plan = getEffectivePlan(vendor);
     delete vendor.isBlocked;
     delete vendor.subscriptionPlan;
+    delete vendor.subscriptionTimeline;
     delete vendor.subscriptionExpiresAt;
   }
 

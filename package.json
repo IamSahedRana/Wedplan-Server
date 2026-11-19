@@ -1,13 +1,14 @@
 {
   "name": "wedplan-server",
   "version": "1.0.0",
-  "description": "WedPlan API \u2014 Express + MongoDB",
+  "description": "WedPlan API — Express + MongoDB",
   "type": "module",
   "main": "api/index.js",
   "scripts": {
-    "dev": "node init && node --watch src/server.js",
-    "start": "node init && node src/server.js",
-    "seed:services": "node scripts/seed-services.js"
+    "start": "node src/server.js",
+    "dev": "nodemon src/server.js",
+    "seed:services": "node scripts/seed-services.js",
+    "seed:pro": "node scripts/migrate-pro-vendor.mjs"
   },
   "keywords": [],
   "author": "",
@@ -25,5 +26,8 @@
     "morgan": "^1.12.1",
     "stripe": "^20.4.1",
     "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.14"
   }
 }

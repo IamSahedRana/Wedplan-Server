@@ -1,11 +1,13 @@
 /**
- * Premium only while subscriptionPlan is "premium" AND the subscription
- * hasn't expired. Use everywhere (limit checks, badges, stats).
+ * Pro is a one-time lifetime purchase: "PRO" plan + "UNLIMITED" timeline.
+ * Legacy paid "premium" users with a future expiry keep access.
  */
 export function getEffectivePlan(user) {
-  const isPremium =
+  const lifetime =
+    user?.subscriptionPlan === "PRO" && user?.subscriptionTimeline === "UNLIMITED";
+  const legacy =
     user?.subscriptionPlan === "premium" &&
     user?.subscriptionExpiresAt &&
     new Date(user.subscriptionExpiresAt).getTime() > Date.now();
-  return isPremium ? "premium" : "free";
+  return lifetime || legacy ? "premium" : "free";
 }

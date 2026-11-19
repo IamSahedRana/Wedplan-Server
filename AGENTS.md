@@ -30,7 +30,7 @@ Categories: Photography & Videography, Wedding Venues, Decoration & Florist, Cat
 - getEffectivePlan(user): premium only if subscriptionPlan=premium AND subscriptionExpiresAt in future; else free. Use it everywhere (limit, badge, stats).
 - On downgrade: keep 3 oldest active services, deactivate the rest.
 - Booking: customers only; not own service; not admin; service approved+active; eventDate future, normalized to date-only UTC; no duplicate pending/accepted booking for same service+date; only pending can be accepted/rejected/cancelled; vendors/customers only touch their own records; customerId/vendorId derived server-side.
-- Premium activated ONLY in verified Stripe webhook (raw body + signature), idempotent. Never from redirect.
+- Pro activated ONLY after server-side Stripe verification (signed webhook or checkout session retrieval), idempotent. Never from redirect alone.
 - Admin cannot edit transactions. Profile PATCH whitelist: name,image,phone,address,bio,businessName. Never role/isBlocked/subscription.
 - Validate every body with zod .strict(); validate every :id as ObjectId. JSON errors {message}. 404 handler. Consistent status codes.
 

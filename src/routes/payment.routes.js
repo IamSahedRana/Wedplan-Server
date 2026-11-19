@@ -8,8 +8,9 @@ const router = Router();
 
 router.use(verifyJWT, requireRole("vendor"));
 
-router.post("/checkout-session", ctrl.createCheckoutSession);
-router.post("/cancel-subscription", ctrl.cancelSubscription);
+router.post("/create-checkout-session", ctrl.createCheckoutSession);
+router.get("/verify-session", ctrl.verifySession);
 router.get("/session/:id", ctrl.getSessionStatus);
+router.get("/transactions", ctrl.vendorTransactions);
 
 export default router;

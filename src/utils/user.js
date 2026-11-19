@@ -11,6 +11,8 @@ const SAFE_FIELDS = [
   "address",
   "bio",
   "subscriptionPlan",
+  "subscriptionId",
+  "subscriptionTimeline",
   "subscriptionExpiresAt",
   "createdAt",
 ];

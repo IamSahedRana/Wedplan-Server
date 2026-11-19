@@ -24,16 +24,26 @@ app.use(
   cors({
     origin(origin, callback) {
       const allowed = process.env.CLIENT_URL;
-      if (!origin || !allowed || origin === allowed) return callback(null, true);
+      if (!origin || !allowed || origin === allowed)
+        return callback(null, true);
       return callback(null, false);
     },
     credentials: true,
     allowedHeaders: ["Content-Type", "Authorization"],
-  })
+  }),
 );
 
 // Stripe needs the untouched raw body for signature verification.
-app.use("/api/webhooks/stripe", express.raw({ type: "application/json" }), stripeWebhookRouter);
+app.use(
+  "/api/payments/webhook",
+  express.raw({ type: "application/json" }),
+  stripeWebhookRouter,
+);
+app.use(
+  "/api/webhooks/stripe",
+  express.raw({ type: "application/json" }),
+  stripeWebhookRouter,
+);
 
 app.use(express.json());
 

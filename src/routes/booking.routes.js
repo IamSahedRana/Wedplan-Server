@@ -11,7 +11,9 @@ const router = Router();
 const createSchema = z
   .object({
     serviceId: z.string().regex(/^[0-9a-fA-F]{24}$/, "Invalid service id"),
-    eventDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Event date must be in YYYY-MM-DD format"),
+    eventDate: z
+      .string()
+      .regex(/^\d{4}-\d{2}-\d{2}$/, "Event date must be in YYYY-MM-DD format"),
     eventLocation: z.string().min(2, "Event location is required").max(120),
     message: z.string().max(500).optional(),
   })
@@ -22,9 +24,21 @@ const statusSchema = z
   .strict();
 
 // Customer
-router.post("/", verifyJWT, requireRole("customer"), validate(createSchema), ctrl.createBooking);
+router.post(
+  "/",
+  verifyJWT,
+  requireRole("customer"),
+  validate(createSchema),
+  ctrl.createBooking,
+);
 router.get("/my", verifyJWT, requireRole("customer"), ctrl.myBookings);
-router.patch("/:id/cancel", verifyJWT, requireRole("customer"), validateObjectId(), ctrl.cancelBooking);
+router.patch(
+  "/:id/cancel",
+  verifyJWT,
+  requireRole("customer"),
+  validateObjectId(),
+  ctrl.cancelBooking,
+);
 
 // Vendor
 router.patch(
@@ -33,7 +47,7 @@ router.patch(
   requireRole("vendor"),
   validateObjectId(),
   validate(statusSchema),
-  ctrl.updateStatus
+  ctrl.updateStatus,
 );
 
 export default router;

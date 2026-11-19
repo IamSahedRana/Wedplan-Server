@@ -1,7 +1,17 @@
 import { getDb } from "../config/db.js";
 import { getStripe } from "../utils/stripe.js";
+import { activatePro } from "../utils/subscription.js";
 
-const DEFAULT_PREMIUM_CENTS = 999;
+function frontendUrl() {
+  return (process.env.FRONTEND_URL || process.env.CLIENT_URL || "").replace(
+    /\/+$/,
+    "",
+  );
+}
+
+function refId(value) {
+  return typeof value === "string" ? value : value?.id || null;
+}
 
 function paging(query) {
   const page = Math.max(1, parseInt(query.page, 10) || 1);
@@ -9,83 +19,108 @@ function paging(query) {
   return { page, limit, skip: (page - 1) * limit };
 }
 
-/** Vendor starts a Premium subscription; a pending transaction records the attempt. */
+/** One-time lifetime Pro checkout. Access is granted only by the verified webhook. */
 export async function createCheckoutSession(req, res) {
   const stripe = getStripe();
-  const clientUrl = (process.env.CLIENT_URL || "").replace(/\/+$/, "");
-  const vendorId = req.user._id;
   const priceId = process.env.STRIPE_PRICE_ID;
-  const unitAmount = Number(process.env.STRIPE_PREMIUM_PRICE_CENTS) || DEFAULT_PREMIUM_CENTS;
+  if (!priceId)
+    return res.status(500).json({ message: "Stripe price is not configured" });
 
-  const lineItem = priceId
-    ? { price: priceId, quantity: 1 }
-    : {
-        price_data: {
-          currency: "usd",
-          unit_amount: unitAmount,
-          recurring: { interval: "month" },
-          product_data: { name: "WedPlan Premium" },
-        },
-        quantity: 1,
-      };
-
+  const userId = req.user._id;
   const session = await stripe.checkout.sessions.create({
-    mode: "subscription",
-    line_items: [lineItem],
+    mode: "payment",
+    line_items: [{ price: priceId, quantity: 1 }],
+    client_reference_id: String(userId),
     customer_email: req.user.email,
-    metadata: { vendorId: String(vendorId) },
-    subscription_data: { metadata: { vendorId: String(vendorId) } },
-    success_url: `${clientUrl}/payment/success?session_id={CHECKOUT_SESSION_ID}`,
-    cancel_url: `${clientUrl}/payment/cancel`,
+    metadata: { userId: String(userId), plan: "PRO" },
+    payment_intent_data: { metadata: { userId: String(userId), plan: "PRO" } },
+    success_url: `${frontendUrl()}/dashboard/vendor/subscription/success?session_id={CHECKOUT_SESSION_ID}`,
+    cancel_url: `${frontendUrl()}/dashboard/vendor/subscription/failed`,
   });
 
   const db = await getDb();
   await db.collection("transactions").insertOne({
-    vendorId,
-    plan: "premium",
-    amount: session.amount_total ?? unitAmount / 100,
+    userId,
+    plan: "PRO",
+    amount: session.amount_total ?? 0,
     currency: (session.currency || "usd").toLowerCase(),
-    stripeSessionId: session.id,
     status: "pending",
+    stripeSessionId: session.id,
+    paymentIntentId: refId(session.payment_intent),
     createdAt: new Date(),
   });
 
-  return res.status(201).json({ url: session.url, sessionId: session.id });
+  return res.status(201).json({ url: session.url });
 }
 
-/** Vendor cancels at period end — access stays active until expiry. */
-export async function cancelSubscription(req, res) {
+async function loadSession(req, sessionId) {
   const stripe = getStripe();
-  const subscriptionId = req.user.stripeSubscriptionId;
-  if (!subscriptionId) {
-    return res.status(400).json({ message: "No active subscription found" });
+  const session = await stripe.checkout.sessions.retrieve(sessionId);
+  const owner = session.metadata?.userId || session.client_reference_id;
+  if (owner && owner !== String(req.user._id)) return { forbidden: true };
+
+  const db = await getDb();
+  const paymentIntentId = refId(session.payment_intent);
+  const paid = session.payment_status === "paid";
+  if (paid) {
+    await activatePro(db, {
+      userId: req.user._id,
+      sessionId,
+      paymentIntentId,
+      amount: session.amount_total,
+      currency: session.currency,
+    });
   }
 
-  const subscription = await stripe.subscriptions.update(subscriptionId, {
-    cancel_at_period_end: true,
-  });
-  return res.json({
-    message: "Subscription will be cancelled at the end of the billing period",
-    cancelAtPeriodEnd: !!subscription.cancel_at_period_end,
-  });
-}
-
-/** Vendor checks the outcome of their own checkout session. */
-export async function getSessionStatus(req, res) {
-  const db = await getDb();
+  const or = [{ stripeSessionId: sessionId }];
+  if (paymentIntentId) or.push({ paymentIntentId });
   const transaction = await db.collection("transactions").findOne({
-    stripeSessionId: req.params.id,
-    vendorId: req.user._id,
+    userId: req.user._id,
+    $or: or,
   });
-  if (!transaction) return res.status(404).json({ message: "Transaction not found" });
-  return res.json({ status: transaction.status, transaction });
+
+  return {
+    status:
+      transaction?.status ||
+      (paid ? "paid" : session.payment_status || "pending"),
+    paymentStatus: session.payment_status || null,
+    plan: session.metadata?.plan === "PRO" ? "PRO" : "FREE",
+    subscriptionPlan: "PRO",
+    subscriptionTimeline: "UNLIMITED",
+    subscriptionId: paymentIntentId || session.id,
+    sessionId: session.id,
+    paymentIntentId,
+    transactionId: transaction?._id || null,
+    transaction,
+  };
 }
 
-/** Vendor's own payment/subscription history. */
+/** GET /api/payments/verify-session?session_id=... */
+export async function verifySession(req, res) {
+  res.set("Cache-Control", "no-store");
+  const sessionId = String(req.query.session_id || "").trim();
+  if (!sessionId)
+    return res.status(400).json({ message: "Missing session_id" });
+  const result = await loadSession(req, sessionId);
+  if (result.forbidden)
+    return res.status(403).json({ message: "Not your checkout session" });
+  return res.json(result);
+}
+
+/** Legacy redirect verifier kept for /payment/success. */
+export async function getSessionStatus(req, res) {
+  res.set("Cache-Control", "no-store");
+  const result = await loadSession(req, req.params.id);
+  if (result.forbidden)
+    return res.status(403).json({ message: "Not your checkout session" });
+  return res.json(result);
+}
+
+/** Vendor's own payment history. */
 export async function vendorTransactions(req, res) {
   const db = await getDb();
   const { page, limit, skip } = paging(req.query);
-  const match = { vendorId: req.user._id };
+  const match = { $or: [{ userId: req.user._id }, { vendorId: req.user._id }] };
 
   const [items, total] = await Promise.all([
     db
