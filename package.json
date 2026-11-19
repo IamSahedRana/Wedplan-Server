@@ -6,7 +6,8 @@
   "main": "api/index.js",
   "scripts": {
     "dev": "node init && node --watch src/server.js",
-    "start": "node init && node src/server.js"
+    "start": "node init && node src/server.js",
+    "seed:services": "node scripts/seed-services.js"
   },
   "keywords": [],
   "author": "",
