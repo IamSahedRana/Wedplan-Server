@@ -7,7 +7,9 @@ import { errorHandler, notFound } from "./middleware/error.js";
 import adminRoutes from "./routes/admin.routes.js";
 import bookingRoutes from "./routes/booking.routes.js";
 import customerRoutes from "./routes/customer.routes.js";
+import paymentRoutes from "./routes/payment.routes.js";
 import serviceRoutes from "./routes/service.routes.js";
+import stripeWebhookRouter from "./routes/stripe-webhook.routes.js";
 import userRoutes from "./routes/user.routes.js";
 import vendorRoutes from "./routes/vendor.routes.js";
 
@@ -15,17 +17,6 @@ const app = express();
 
 app.set("trust proxy", 1);
 app.disable("x-powered-by");
-
-// ---------------------------------------------------------------------------
-// Stripe webhook mount slot — MUST stay before express.json() so the raw
-// request body is available for signature verification.
-//
-// app.use(
-//   "/api/webhooks/stripe",
-//   express.raw({ type: "application/json" }),
-//   stripeWebhookRouter
-// );
-// ---------------------------------------------------------------------------
 
 app.use(helmet());
 app.use(morgan(process.env.NODE_ENV === "production" ? "tiny" : "dev"));
@@ -40,6 +31,9 @@ app.use(
     allowedHeaders: ["Content-Type", "Authorization"],
   })
 );
+
+// Stripe needs the untouched raw body for signature verification.
+app.use("/api/webhooks/stripe", express.raw({ type: "application/json" }), stripeWebhookRouter);
 
 app.use(express.json());
 
@@ -58,6 +52,7 @@ app.use("/api/vendor", vendorRoutes);
 app.use("/api/customer", customerRoutes);
 app.use("/api/bookings", bookingRoutes);
 app.use("/api/admin", adminRoutes);
+app.use("/api/payments", paymentRoutes);
 app.use("/api", userRoutes);
 
 app.use(notFound);
