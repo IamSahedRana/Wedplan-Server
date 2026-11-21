@@ -1,5 +1,7 @@
 # WedPlan — Wedding Services Marketplace (Server)
 
+## Project Name and Description
+
 WedPlan is a wedding services marketplace where couples discover, compare and book trusted vendors for photography, venues, decoration, catering, makeup and fashion. This repository contains the Express 5 + MongoDB API that powers JWT verification, services, bookings, admin moderation and one-time lifetime Pro payments.
 
 ## Important Features
