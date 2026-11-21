@@ -1,121 +1,82 @@
-# WedPlan
+# WedPlan Server
 
-WedPlan is a wedding services marketplace that connects couples with trusted local vendors. Customers can discover, compare and book wedding services; vendors can publish and manage their offerings and bookings; admins can moderate users, services and transactions.
+Express 5 + MongoDB API for the WedPlan wedding services marketplace.
 
-**Live website:** `https://<live-website-url>`
-
-**Client repository:** `https://github.com/<owner>/<client-repo>`
-
-**Server repository:** `https://github.com/<owner>/<server-repo>`
+**Client repository:** `https://github.com/IamSahedRana/Wedplan-Client`
+**Server repository:** `https://github.com/IamSahedRana/Wedplan-Server`
 
 ## Features
 
-- Email/password and Google sign-in with role-based access (`customer`, `vendor`, `admin`)
-- One-time onboarding to choose customer or vendor role
-- Browse services with search, category filter, price sorting and pagination
-- Service detail pages with gallery, vendor info and booking request form
-- Vendor dashboard: overview, service management, add service, booking requests, subscription, profile
-- Customer dashboard: overview, bookings, profile
-- Admin dashboard: overview, user management, service moderation, transactions
-- Booking lifecycle: pending / accepted / rejected / cancelled, with duplicate-date protection
-- Service moderation: pending / approved / rejected; only approved and active services are public
-- Free plan allows 3 active services; premium allows unlimited
-- Stripe subscription checkout with signature-verified webhook activation
-- Blocked-user enforcement, JWT verification on every protected API request
-- Responsive UI with loading skeletons, empty states and error states
+- Better Auth JWT verification via JWKS hosted by the client; role and blocked status come from MongoDB
+- Customer, vendor and admin dashboards with booking and service moderation workflows
+- Free plan: 3 active services. Pro: unlimited services, featured placement and priority support
+- One-time lifetime Pro checkout (USD); Pro is granted by a signed Stripe webhook or by server-side verification of a paid checkout session
+- Idempotent Stripe webhook handling with raw-body signature verification
 
 ## Tech stack
 
-| Layer | Technologies |
-| --- | --- |
-| Client | Next.js 16 (App Router), React 19, JavaScript, Tailwind CSS 4, shadcn/ui, Radix UI, Framer Motion, React Hook Form, Zod, Better Auth, Recharts, Sonner, Lucide icons |
-| Server | Node.js 18+, Express 5, MongoDB (native driver), Better Auth JWT verification via `jose`, Stripe, Zod, Helmet, CORS, Morgan |
-| Hosting | Vercel (client and server) |
+Node.js 18+, Express 5, MongoDB native driver, `jose`, Stripe, Zod, Helmet, CORS, Morgan.
+Hosting: Railway (long-running Node process). The `api/index.js` + `vercel.json` pair remains as a legacy Vercel fallback.
 
 ## Installation
 
-Requirements: Node.js 18 or newer, npm and a MongoDB database URI.
-
-1. Clone the two repositories into a folder:
-
-   ```bash
-   git clone https://github.com/<owner>/<client-repo>.git wedplan-client
-   git clone https://github.com/<owner>/<server-repo>.git wedplan-server
-   ```
-
-2. Install dependencies:
-
-   ```bash
-   cd wedplan-client && npm install
-   cd ../wedplan-server && npm install
-   ```
-
-3. In each project, copy `.env.example` to `.env` and fill in your own values. Never commit `.env` files; `.gitignore` already excludes them. The variable names are listed below.
-
-## Environment variables (names only)
-
-Client (`wedplan-client/.env`):
-
-```text
-MONGODB_URI
-DB_NAME
-BETTER_AUTH_SECRET
-BETTER_AUTH_URL
-NEXT_PUBLIC_APP_URL
-NEXT_PUBLIC_API_URL
-GOOGLE_CLIENT_ID
-GOOGLE_CLIENT_SECRET
-IMGBB_API_KEY
-ADMIN_EMAIL
-ADMIN_PASSWORD
-ADMIN_NAME
+```bash
+npm install
+cp .env.example .env   # fill in your own values; never commit .env
+npm run dev            # http://localhost:5000
 ```
 
-Server (`wedplan-server/.env`):
+`npm start` runs `node src/server.js` and is the production entrypoint.
+
+## Environment variables (names only)
 
 ```text
 PORT
 MONGODB_URI
 DB_NAME
 CLIENT_URL
+FRONTEND_URL
 STRIPE_SECRET_KEY
 STRIPE_WEBHOOK_SECRET
 STRIPE_PRICE_ID
 ```
 
-## Local run
+- `CLIENT_URL` must be the exact client origin (no trailing slash). The API fetches `${CLIENT_URL}/api/auth/jwks` to verify JWTs, so a wrong value makes every protected request return 401.
+- `FRONTEND_URL` is used for Stripe success/cancel URLs; it falls back to `CLIENT_URL`.
+- `PORT` is injected by Railway locally defaults to 5000.
 
-Start the API first, then the client (use two terminals):
+## Local Stripe webhook testing
 
-```bash
-# Terminal 1 - API at http://localhost:5000
-cd wedplan-server
-npm run dev
-```
+Stripe cannot reach `localhost`. Use the Stripe CLI:
 
 ```bash
-# Terminal 2 - website at http://localhost:3000
-cd wedplan-client
-npm run dev
+stripe listen --forward-to localhost:5000/api/payments/webhook
 ```
 
-Optional demo data:
+Copy the printed `whsec_...` signing secret into `STRIPE_WEBHOOK_SECRET`. Checkout still works without a webhook because `/api/payments/verify-session` verifies the paid session directly with Stripe.
 
-```bash
-# Client - create the first admin (uses values from client .env)
-npm run seed:admin
+## Deployment on Railway
 
-# Server - seed services for two existing vendor emails
-npm run seed:services -- vendor1@example.com vendor2@example.com
+1. Create a Railway project and deploy this repository (`Wedplan-Server`), root directory `/`.
+2. Set the start command to `node src/server.js` (also defined in `railway.json`); healthcheck path is `/api/health`.
+3. Add all environment variables above. Do not hardcode `PORT`; Railway injects it.
+4. Set `CLIENT_URL` and `FRONTEND_URL` to the deployed client origin, e.g. `https://wedplan.vercel.app`.
+5. Allow Railway egress IPs in MongoDB Atlas Network Access (or `0.0.0.0/0` for development), with a `readWrite` database user.
+6. Verify `https://<railway-domain>/api/health` returns 200.
+
+## Stripe webhook in production
+
+Dashboard → Developers → Webhooks → Add endpoint:
+
+```text
+https://<railway-domain>/api/payments/webhook
 ```
 
-Production commands:
+Listen to `checkout.session.completed` and `payment_intent.payment_failed`, then copy the endpoint signing secret into `STRIPE_WEBHOOK_SECRET` on Railway and redeploy.
 
-```bash
-# Client
-npm run build
-npm start
+## Troubleshooting
 
-# Server
-npm start
-```
+- Every API call returns 401: `CLIENT_URL` is wrong, so JWKS cannot be fetched.
+- Browser shows "Failed to fetch": `NEXT_PUBLIC_API_URL` on the client still points to localhost or CORS only allows the exact `CLIENT_URL`.
+- No data after redeploy: `NEXT_PUBLIC_*` values are baked into the client at build time; rebuild after changing them.
+- Mongo timeouts: Atlas IP allowlist or wrong `MONGODB_URI`/`DB_NAME`.
